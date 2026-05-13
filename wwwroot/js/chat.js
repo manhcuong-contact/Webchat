@@ -730,13 +730,15 @@ const iceServers = {
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" }
-    ]
+    ],
+    iceTransportPolicy: 'all'
 };
 
 let callTimerInterval;
 let callStartTime;
 let pendingIceCandidates = [];
 let isCallConnected = false;
+let isCallEnded = false;
 let currentCallType = "thoại"; // Default to voice
 
 // Start a call
@@ -780,9 +782,22 @@ window.startCall = function(isVideo) {
             // Add local stream tracks
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-            // On remote track
             peerConnection.ontrack = event => {
-                document.getElementById("remoteVideo").srcObject = event.streams[0];
+                console.log("WebChat: Nhận được luồng từ xa", event.streams);
+                const remoteVideo = document.getElementById("remoteVideo");
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    remoteVideo.play().catch(e => console.warn("Tự động phát bị chặn:", e));
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                console.log("WebChat: Trạng thái kết nối:", peerConnection.connectionState);
+                if (peerConnection.connectionState === "connected") {
+                    document.getElementById("callStatusText").innerText = "Đã kết nối";
+                } else if (peerConnection.connectionState === "failed" || peerConnection.connectionState === "disconnected") {
+                    console.error("WebChat: Kết nối thất bại hoặc bị ngắt.");
+                }
             };
 
             // On ICE candidate setup
@@ -845,7 +860,19 @@ window.acceptCall = function() {
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = event => {
-                document.getElementById("remoteVideo").srcObject = event.streams[0];
+                console.log("WebChat: Nhận được luồng từ xa (người nhận)", event.streams);
+                const remoteVideo = document.getElementById("remoteVideo");
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    remoteVideo.play().catch(e => console.warn("Tự động phát bị chặn:", e));
+                }
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                console.log("WebChat: Trạng thái kết nối (người nhận):", peerConnection.connectionState);
+                if (peerConnection.connectionState === "connected") {
+                    document.getElementById("callStatusText").innerText = "Đã kết nối";
+                }
             };
 
             peerConnection.onicecandidate = event => {
@@ -925,7 +952,10 @@ function stopCallTimer() {
     document.getElementById("callTimer").classList.add("d-none");
 }
 
-window.endCall = function() {
+window.endCall = function(isInitiator = true) {
+    if (isCallEnded) return;
+    isCallEnded = true;
+
     const duration = document.getElementById("callTimer").innerText;
     const status = isCallConnected ? "Completed" : "Missed";
 
@@ -939,12 +969,12 @@ window.endCall = function() {
         document.getElementById("localVideo").srcObject = null;
     }
     
-    // Log call if connected or if we are the one who rejected
-    if (activeConversationId && activeCallTargetId) {
+    // Chỉ người chủ động kết thúc hoặc khi cuộc gọi nhỡ mới log lịch sử (để tránh bị nhân đôi)
+    if (isInitiator && activeConversationId && activeCallTargetId) {
         connection.invoke("SaveCallLog", activeConversationId, activeCallTargetId, duration, currentCallType, status).catch(console.error);
     }
 
-    if (activeCallTargetId) {
+    if (isInitiator && activeCallTargetId) {
         connection.invoke("RejectCall", activeCallTargetId).catch(console.error);
     }
 
@@ -959,8 +989,7 @@ window.endCall = function() {
 }
 
 connection.on("CallRejected", function (userId) {
-    alert("Cuộc gọi đã kết thúc.");
-    activeCallTargetId = null; // Prevent secondary reject
-    endCall();
+    console.log("WebChat: Cuộc gọi bị từ chối hoặc kết thúc bởi đối phương.");
+    endCall(false); // Không phải người khởi tạo kết thúc tại đây, chỉ đóng giao diện
 });
 
