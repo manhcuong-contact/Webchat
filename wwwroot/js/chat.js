@@ -734,32 +734,48 @@ let callStartTime = null;
 let callTimerInterval = null;
 
 async function joinZegoRoom(roomID, isVideo) {
-    if (zp) return; 
-    
+    if (zp) return;
+
     const outerContainer = document.getElementById("zego-full-screen-container");
     const innerContainer = document.getElementById("zego-inner-container");
+
+    // ── Bước 1: Kiểm tra quyền camera/mic trước khi khởi động Zego ──
+    try {
+        const constraints = isVideo ? { audio: true, video: true } : { audio: true, video: false };
+        const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+        testStream.getTracks().forEach(t => t.stop()); // Giải phóng ngay, Zego sẽ tự mở lại
+    } catch (permErr) {
+        const hint = location.protocol !== "https:"
+            ? " Trang phải chạy qua HTTPS mới dùng được camera/mic. Truy cập: https://localhost:7285"
+            : " Hãy cấp quyền camera/mic trong cài đặt trình duyệt rồi thử lại.";
+        document.getElementById("callStatusText").innerText = "❌ Không thể truy cập camera/mic." + hint;
+        document.getElementById("old-call-ui").classList.remove("d-none");
+        console.error("Permission error:", permErr);
+        // KHÔNG đặt isCallEnded để nút Kết thúc vẫn hoạt động bình thường
+        return;
+    }
+
     outerContainer.style.display = "flex";
 
+    // ── Bước 2: Khởi động Zego SDK ──
     try {
         if (typeof ZegoUIKitPrebuilt === 'undefined') {
-            throw new Error("Thư viện gọi điện chưa được tải xong. Vui lòng thử lại sau vài giây.");
+            throw new Error("Thư viện gọi điện chưa được tải. Vui lòng thử lại.");
         }
 
         const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-            appID, 
-            serverSecret, 
-            roomID, 
-            currentUserId || "user_" + Math.floor(Math.random()*1000), 
+            appID,
+            serverSecret,
+            roomID,
+            currentUserId || "user_" + Math.floor(Math.random() * 1000),
             currentUserName || "Người dùng"
         );
-        
+
         zp = ZegoUIKitPrebuilt.create(kitToken);
-        
+
         zp.joinRoom({
             container: innerContainer,
-            scenario: {
-                mode: ZegoUIKitPrebuilt.OneONoneCall,
-            },
+            scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
             showPreJoinView: false,
             turnOnMicrophoneWhenJoining: true,
             turnOnCameraWhenJoining: isVideo,
@@ -773,21 +789,19 @@ async function joinZegoRoom(roomID, isVideo) {
                 endCall();
             }
         });
-        
-        // Ẩn modal gọi điện cũ
-        const callModalElement = document.getElementById('callModal');
-        const callModal = bootstrap.Modal.getInstance(callModalElement);
+
+        // Ẩn modal chờ cũ sau khi Zego đã render
+        const callModalEl = document.getElementById("callModal");
+        const callModal = bootstrap.Modal.getInstance(callModalEl);
         if (callModal) callModal.hide();
 
     } catch (error) {
         console.error("WebChat ZEGO Error:", error);
-        alert("Lỗi khởi tạo cuộc gọi: " + error.message);
         outerContainer.style.display = "none";
-        isCallEnded = true;
-        if (zp) {
-            zp.destroy();
-            zp = null;
-        }
+        zp = null;
+        // Hiện lỗi trong modal, KHÔNG đặt isCallEnded=true để nút Kết thúc vẫn hoạt động
+        document.getElementById("callStatusText").innerText = "❌ Lỗi: " + error.message;
+        document.getElementById("old-call-ui").classList.remove("d-none");
     }
 }
 
