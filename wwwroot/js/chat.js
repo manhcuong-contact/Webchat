@@ -732,7 +732,9 @@ let isCallEnded = false;
 let currentCallType = "thoại"; 
 
 async function joinZegoRoom(roomID, isVideo) {
-    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(appID, serverSecret, roomID, currentUserId, currentUserName);
+    if (zp) return; // Tránh join nhiều lần
+    
+    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(appID, serverSecret, roomID, currentUserId, currentUserName || "User_" + currentUserId);
     zp = ZegoUIKitPrebuilt.create(kitToken);
     
     zp.joinRoom({
@@ -744,6 +746,9 @@ async function joinZegoRoom(roomID, isVideo) {
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: isVideo,
         showScreenSharingButton: true,
+        showMyCameraToggleButton: true,
+        showMyMicrophoneToggleButton: true,
+        showAudioVideoSettingsButton: true,
         onLeaveRoom: () => {
             endCall();
         }
@@ -751,6 +756,7 @@ async function joinZegoRoom(roomID, isVideo) {
     
     document.getElementById("old-call-ui").classList.add("d-none");
     document.getElementById("zego-call-container").classList.remove("d-none");
+    document.getElementById("zego-call-container").style.height = "550px";
 }
 
 // Start a call
@@ -798,6 +804,7 @@ connection.on("ReceiveCall", function (callerId, callerName, conversationId, off
 });
 
 window.acceptCall = function() {
+    document.getElementById("acceptCallBtn").classList.add("d-none");
     isCallConnected = true;
     const isVideo = currentCallOffer.isVideo;
     
