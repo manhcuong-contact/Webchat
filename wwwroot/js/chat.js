@@ -25,6 +25,10 @@ connection.on("ReceiveMessage", function (message) {
     loadConversations(); 
 });
 
+window.backToSidebar = function() {
+    document.getElementById("chatArea").classList.remove("active");
+}
+
 // Receive Friend Request Notification
 connection.on("ReceiveFriendRequest", function (requesterName) {
     document.getElementById("friendRequestBadge").classList.remove("d-none");
@@ -108,6 +112,9 @@ function openChat(id, name, avatar, element) {
     document.querySelector(".chat-empty-state").classList.add("d-none");
     document.querySelector(".chat-active-state").classList.remove("d-none");
     document.querySelector(".chat-active-state").classList.add("d-flex");
+
+    // Mobile: Show chat area
+    document.getElementById("chatArea").classList.add("active");
     
     document.getElementById("currentChatName").innerText = name;
     document.getElementById("currentChatAvatar").src = avatar;
