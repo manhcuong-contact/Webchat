@@ -44,15 +44,16 @@ function loadConversations() {
             list.innerHTML = "";
             data.forEach(conv => {
                 const isActive = conv.id === activeConversationId ? "active bg-primary bg-opacity-25" : "";
+                const activeClass = conv.id === activeConversationId ? "active bg-primary bg-opacity-25" : "";
                 // Use a default avatar if none provided
                 const avatar = conv.avatar || "/img/default_avatar.png";
                 const lastMsg = conv.lastMessage || "Chưa có tin nhắn";
                 const isGroupMark = conv.isGroup ? `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">Group/Channel</span>` : "";
 
                 const html = `
-                    <div class="d-flex align-items-center p-2 rounded cursor-pointer mb-1 conversation-item ${isActive}" onclick="openChat('${conv.id}', '${conv.name}', '${avatar}', this)">
-                        <img src="${avatar}" class="rounded-circle me-2" width="45" height="45">
-                        <div class="overflow-hidden w-100">
+                    <div class="conversation-item d-flex align-items-center p-3 cursor-pointer ${activeClass}" onclick="openChat('${conv.id}', '${conv.name}', '${avatar}', this)">
+                        <img src="${avatar}" class="rounded-circle me-3" width="45" height="45" onclick="event.stopPropagation(); viewChatPartnerProfile('${conv.id}', ${conv.isGroup})">
+                        <div class="flex-grow-1 overflow-hidden">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h6 class="m-0 text-white text-truncate">${conv.name} ${isGroupMark}</h6>
                             </div>
@@ -376,10 +377,34 @@ window.unfriend = function(friendId) {
             alert('Đã hủy kết bạn thành công.');
             const profileModal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
             if (profileModal) profileModal.hide();
+            
+            // Clear current chat if we just unfriended the active partner
+            if (currentConversationDetails && !currentConversationDetails.isGroup) {
+                const partner = currentConversationDetails.participants.find(p => p.id !== currentUserId);
+                if (partner && partner.id === friendId) {
+                    location.reload(); // Refresh to clear state
+                }
+            }
+            
             loadConversations();
-            loadFriends(); // Reload friends list if any other UI depends on it
         })
         .catch(err => alert('Lỗi khi hủy kết bạn'));
+}
+
+window.viewChatPartnerProfile = function() {
+    if (!currentConversationDetails || currentConversationDetails.isGroup) return;
+    const partner = currentConversationDetails.participants.find(p => p.id !== currentUserId);
+    if (partner) viewProfile(partner.id);
+}
+
+window.viewProfileByConversation = function(convId, isGroup) {
+    if (isGroup === 'true') return; // Not handling group profile yet
+    fetch(`/api/chatapi/conversations/${convId}`)
+        .then(res => res.json())
+        .then(data => {
+            const partner = data.participants.find(p => p.id !== currentUserId);
+            if (partner) viewProfile(partner.id);
+        });
 }
 
 // ============================================================================
