@@ -92,6 +92,9 @@ public class AccountController : Controller
                 Username = model.Username,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password),
                 DisplayName = model.DisplayName,
+                Age = model.Age,
+                Email = model.Email,
+                Phone = model.Phone,
                 Avatar = "/img/default_avatar.png"
             };
 

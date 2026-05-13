@@ -117,8 +117,8 @@ public class ChatApiController : ControllerBase
         {
             Name = req.Name,
             IsGroup = true,
-            AdminId = req.IsChannel ? currentUserId : null,
-            // Prefix '#' if it is a channel (1:N only admin chats)
+            Owners = new List<string> { currentUserId! },
+            IsReadOnlyMode = req.IsChannel, // Nếu là channel, mặc định bật chế độ ReadOnly
             Participants = req.ParticipantIds.Distinct().ToList(),
             UpdatedAt = DateTime.UtcNow
         };
@@ -130,6 +130,120 @@ public class ChatApiController : ControllerBase
 
         await _mongoService.Conversations.InsertOneAsync(newConv);
         return Ok(new { conversationId = newConv.Id });
+    }
+
+    [HttpGet("conversation/{conversationId}/details")]
+    public async Task<IActionResult> GetConversationDetails(string conversationId)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null || !conversation.Participants.Contains(currentUserId))
+        {
+            return Forbid();
+        }
+
+        // Lấy danh sách users thuộc nhóm
+        var users = await _mongoService.Users.Find(u => conversation.Participants.Contains(u.Id)).ToListAsync();
+
+        var participantsInfo = users.Select(u => new
+        {
+            u.Id,
+            u.DisplayName,
+            u.Avatar,
+            Role = conversation.Owners.Contains(u.Id!) ? "Owner" :
+                   (conversation.Admins.Contains(u.Id!) ? "Admin" : "Member")
+        });
+
+        return Ok(new
+        {
+            conversation.Id,
+            conversation.Name,
+            conversation.IsGroup,
+            conversation.IsReadOnlyMode,
+            IsMuted = conversation.MutedByUsers.Contains(currentUserId),
+            MyRole = conversation.Owners.Contains(currentUserId) ? "Owner" :
+                   (conversation.Admins.Contains(currentUserId) ? "Admin" : "Member"),
+            Participants = participantsInfo
+        });
+    }
+
+    [HttpPut("conversation/{conversationId}/readonly")]
+    public async Task<IActionResult> ToggleReadOnly(string conversationId, [FromBody] bool isReadOnly)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null) return NotFound();
+
+        // Chỉ Owner và Admin mới được set ReadOnly toggle
+        if (!conversation.Owners.Contains(currentUserId) && !conversation.Admins.Contains(currentUserId))
+        {
+            return Forbid();
+        }
+
+        var update = Builders<Conversation>.Update.Set(c => c.IsReadOnlyMode, isReadOnly);
+        await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+
+        return Ok(new { message = "Cập nhật thành công", isReadOnly });
+    }
+
+    [HttpPut("conversation/{conversationId}/role/{targetUserId}")]
+    public async Task<IActionResult> ChangeRole(string conversationId, string targetUserId, [FromQuery] string newRole)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null) return NotFound();
+
+        // Chỉ Owner mới được thay đổi quyền (thăng cấp Admin hoặc giáng cấp)
+        if (!conversation.Owners.Contains(currentUserId))
+        {
+            return Forbid();
+        }
+
+        if (newRole == "Admin")
+        {
+            var update = Builders<Conversation>.Update.AddToSet(c => c.Admins, targetUserId);
+            await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+        }
+        else if (newRole == "Member")
+        {
+            var update = Builders<Conversation>.Update.Pull(c => c.Admins, targetUserId);
+            await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+        }
+
+        return Ok(new { message = "Cập nhật quyền thành công." });
+    }
+
+    [HttpPut("conversation/{conversationId}/mute")]
+    public async Task<IActionResult> ToggleMute(string conversationId, [FromBody] bool isMuted)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null || !conversation.Participants.Contains(currentUserId))
+        {
+            return NotFound();
+        }
+
+        UpdateDefinition<Conversation> update;
+        if (isMuted)
+        {
+            update = Builders<Conversation>.Update.AddToSet(c => c.MutedByUsers, currentUserId);
+        }
+        else
+        {
+            update = Builders<Conversation>.Update.Pull(c => c.MutedByUsers, currentUserId);
+        }
+
+        await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+
+        return Ok(new { message = isMuted ? "Đã tắt thông báo" : "Đã bật thông báo", isMuted });
     }
 
     [HttpGet("conversation/{conversationId}/messages")]
@@ -149,6 +263,42 @@ public class ChatApiController : ControllerBase
             .ToListAsync();
 
         return Ok(messages);
+    }
+
+    [HttpPost("upload")]
+    public async Task<IActionResult> UploadFile([FromForm] IFormFile file)
+    {
+        if (file == null || file.Length == 0) return BadRequest("No file found.");
+
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx", ".zip", ".webm", ".mkv", ".mp3", ".wav" };
+        var ext = Path.GetExtension(file.FileName).ToLower();
+
+        if (!allowedExtensions.Contains(ext))
+            return BadRequest("File type not allowed.");
+
+        // Create folder if not exists
+        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
+
+        var uniqueName = Guid.NewGuid().ToString() + ext;
+        var filePath = Path.Combine(uploadsFolder, uniqueName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var fileUrl = $"/uploads/{uniqueName}";
+
+        // Determine message type
+        var type = "file";
+        if (new[] { ".jpg", ".jpeg", ".png", ".gif" }.Contains(ext)) type = "image";
+        else if (new[] { ".webm", ".mp3", ".wav" }.Contains(ext)) type = "audio";
+
+        return Ok(new { url = fileUrl, type = type });
     }
 }
 

@@ -30,5 +30,16 @@ namespace WEBchat.Models
 
         [Required(ErrorMessage = "Vui lòng nhập Tên hiển thị.")]
         public string DisplayName { get; set; } = null!;
+
+        [Required(ErrorMessage = "Vui lòng nhập Tuổi.")]
+        [Range(1, 150, ErrorMessage = "Tuổi không hợp lệ.")]
+        public int Age { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập Email.")]
+        [EmailAddress(ErrorMessage = "Email không hợp lệ.")]
+        public string Email { get; set; } = null!;
+
+        [Phone(ErrorMessage = "Số điện thoại không hợp lệ.")]
+        public string? Phone { get; set; }
     }
 }

@@ -12,6 +12,9 @@ public class User
     public string Username { get; set; } = null!;
     public string PasswordHash { get; set; } = null!;
     public string DisplayName { get; set; } = null!;
+    public int Age { get; set; }
+    public string Email { get; set; } = null!;
+    public string? Phone { get; set; }
     public string? Avatar { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

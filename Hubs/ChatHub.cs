@@ -39,10 +39,11 @@ public class ChatHub : Hub
 
         if (!conversation.Participants.Contains(senderId)) return;
 
-        // Channel constraint: logic cho nhóm dạng kênh mà chỉ Admin dc nhắn (như yêu cầu 1:N)
-        if (conversation.IsGroup && !string.IsNullOrEmpty(conversation.AdminId) && conversation.Name != null && conversation.Name.StartsWith("#", StringComparison.OrdinalIgnoreCase) && conversation.AdminId != senderId)
+        // Channel/Group read-only constraint: Nếu nhóm đang bật ReadOnlyMode, chỉ có Admin hoặc Owner mới được nhắn.
+        if (conversation.IsGroup && conversation.IsReadOnlyMode)
         {
-            return; // Chỉ admin mới được gửi trong channel (kí hiệu channel bắt đầu bằng # chẳng hạn)
+            bool isAuthorized = conversation.Owners.Contains(senderId) || conversation.Admins.Contains(senderId);
+            if (!isAuthorized) return;
         }
 
         var message = new Message
@@ -58,10 +59,37 @@ public class ChatHub : Hub
         await _mongoService.Messages.InsertOneAsync(message);
 
         var update = Builders<Conversation>.Update
-            .Set(c => c.LastMessage, content)
+            .Set(c => c.LastMessage, type == "text" ? content : $"[{type.ToUpper()}] Được gửi đi")
             .Set(c => c.UpdatedAt, DateTime.UtcNow);
         await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
 
-        await Clients.Group(conversationId).SendAsync("ReceiveMessage", message);
+        // Lọc ra danh sách những người ko Mute nhóm để đẩy SignalR
+        var targetUsers = conversation.Participants.Where(p => !conversation.MutedByUsers.Contains(p)).ToList();
+
+        await Clients.Users(targetUsers).SendAsync("ReceiveMessage", message);
+    }
+
+    // WebRTC Signaling
+    public async Task CallUser(string targetUserId, string conversationId, object offer)
+    {
+        var callerId = Context.UserIdentifier;
+        var callerName = Context.User?.Identity?.Name;
+        await Clients.User(targetUserId).SendAsync("ReceiveCall", callerId, callerName, conversationId, offer);
+    }
+
+    public async Task AnswerCall(string callerId, object answer)
+    {
+        var targetId = Context.UserIdentifier;
+        await Clients.User(callerId).SendAsync("CallAccepted", targetId, answer);
+    }
+
+    public async Task SendICECandidate(string targetUserId, object candidate)
+    {
+        await Clients.User(targetUserId).SendAsync("ReceiveICECandidate", candidate);
+    }
+
+    public async Task RejectCall(string callerId)
+    {
+        await Clients.User(callerId).SendAsync("CallRejected", Context.UserIdentifier);
     }
 }

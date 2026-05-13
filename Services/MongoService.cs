@@ -11,7 +11,7 @@ public class MongoService
     {
         var connectionString = configuration.GetSection("MongoDbSettings:ConnectionString").Value;
         var databaseName = configuration.GetSection("MongoDbSettings:DatabaseName").Value;
-        
+
         var client = new MongoClient(connectionString);
         _database = client.GetDatabase(databaseName);
     }
@@ -19,4 +19,5 @@ public class MongoService
     public IMongoCollection<User> Users => _database.GetCollection<User>("Users");
     public IMongoCollection<Message> Messages => _database.GetCollection<Message>("Messages");
     public IMongoCollection<Conversation> Conversations => _database.GetCollection<Conversation>("Conversations");
+    public IMongoCollection<Friendship> Friendships => _database.GetCollection<Friendship>("Friendships");
 }

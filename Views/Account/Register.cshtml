@@ -18,13 +18,31 @@
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="DisplayName" class="control-label"></label>
+                <label asp-for="DisplayName" class="control-label">Tên hiển thị</label>
                 <input asp-for="DisplayName" class="form-control" placeholder="Tên hiển thị" />
                 <span asp-validation-for="DisplayName" class="text-danger"></span>
             </div>
 
             <div class="form-group mb-3">
-                <label asp-for="Password" class="control-label"></label>
+                <label asp-for="Age" class="control-label">Tuổi</label>
+                <input asp-for="Age" class="form-control" type="number" placeholder="Tuổi của bạn" />
+                <span asp-validation-for="Age" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Email" class="control-label">Email</label>
+                <input asp-for="Email" class="form-control" type="email" placeholder="example@email.com" />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Phone" class="control-label">Số điện thoại (Tuỳ chọn)</label>
+                <input asp-for="Phone" class="form-control" type="tel" placeholder="09xxxxxxx" />
+                <span asp-validation-for="Phone" class="text-danger"></span>
+            </div>
+
+            <div class="form-group mb-3">
+                <label asp-for="Password" class="control-label">Mật khẩu</label>
                 <input asp-for="Password" class="form-control" type="password" placeholder="Mật khẩu" />
                 <span asp-validation-for="Password" class="text-danger"></span>
             </div>
