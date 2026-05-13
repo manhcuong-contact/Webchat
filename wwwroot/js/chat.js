@@ -751,6 +751,7 @@ window.startCall = function(isVideo) {
         alert("Cuộc gọi chỉ hỗ trợ chat cá nhân 2 người.");
         return;
     }
+    isCallEnded = false; // Reset trạng thái để có thể nhấn Kết thúc
 
     // Get the other participant
     const targetUserId = currentConversationDetails.participants.find(p => p.id !== currentUserId)?.id;
@@ -842,6 +843,7 @@ connection.on("ReceiveCall", function (callerId, callerName, conversationId, off
     activeCallTargetId = callerId;
     currentCallOffer = offer;
     activeConversationId = conversationId; 
+    isCallEnded = false; 
 
     document.getElementById("callModalTitle").innerText = "Cuộc gọi đến";
     document.getElementById("callStatusText").innerText = `${callerName} đang gọi cho bạn...`;
