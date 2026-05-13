@@ -71,12 +71,22 @@ public class ChatHub : Hub
         await Clients.Users(conversation.Participants).SendAsync("UpdateConversationList");
     }
 
-    // WebRTC Signaling
+    // WebRTC Signaling - 1:1
     public async Task CallUser(string targetUserId, string conversationId, object offer)
     {
         var callerId = Context.UserIdentifier;
         var callerName = Context.User?.Identity?.Name;
         await Clients.User(targetUserId).SendAsync("ReceiveCall", callerId, callerName, conversationId, offer);
+    }
+
+    // Group Call - gửi thông báo tới tất cả thành viên trong nhóm
+    public async Task CallGroup(string conversationId, object offer)
+    {
+        var callerId = Context.UserIdentifier;
+        var callerName = Context.User?.Identity?.Name;
+        // Gửi tới tất cả trong group SignalR trừ người gọi
+        await Clients.GroupExcept(conversationId, Context.ConnectionId)
+            .SendAsync("ReceiveGroupCall", callerId, callerName, conversationId, offer);
     }
 
     public async Task AnswerCall(string callerId, object answer)

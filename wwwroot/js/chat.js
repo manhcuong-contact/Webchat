@@ -733,7 +733,7 @@ let currentCallType = "thoại";
 let callStartTime = null;
 let callTimerInterval = null;
 
-async function joinZegoRoom(roomID, isVideo) {
+async function joinZegoRoom(roomID, isVideo, isGroupCall = false) {
     if (zp) return;
 
     const outerContainer = document.getElementById("zego-full-screen-container");
@@ -773,9 +773,14 @@ async function joinZegoRoom(roomID, isVideo) {
 
         zp = ZegoUIKitPrebuilt.create(kitToken);
 
+        // Chọn mode phù hợp: GroupCall cho nhóm, OneONoneCall cho 1-1
+        const zegoMode = isGroupCall
+            ? ZegoUIKitPrebuilt.GroupCall
+            : ZegoUIKitPrebuilt.OneONoneCall;
+
         zp.joinRoom({
             container: innerContainer,
-            scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
+            scenario: { mode: zegoMode },
             showPreJoinView: false,
             turnOnMicrophoneWhenJoining: true,
             turnOnCameraWhenJoining: isVideo,
@@ -805,63 +810,105 @@ async function joinZegoRoom(roomID, isVideo) {
     }
 }
 
-// Start a call
+// Start a call (hỗ trợ cả 1-1 và nhóm)
 window.startCall = function(isVideo) {
-    if (!activeConversationId || currentConversationDetails.isGroup) {
-        alert("Cuộc gọi chỉ hỗ trợ chat cá nhân 2 người.");
-        return;
-    }
+    if (!activeConversationId || !currentConversationDetails) return;
     isCallEnded = false;
+    const isGroup = currentConversationDetails.isGroup;
 
-    const targetUserId = currentConversationDetails.participants.find(p => p.id !== currentUserId)?.id;
-    if (!targetUserId) return;
-
-    activeCallTargetId = targetUserId;
     currentCallType = isVideo ? "video" : "thoại";
-    
-    document.getElementById("callModalTitle").innerText = "Đang gọi...";
-    document.getElementById("callStatusText").innerText = "Đang chờ đối phương trả lời...";
-    document.getElementById("zego-call-container").classList.add("d-none");
-    document.getElementById("old-call-ui").classList.remove("d-none");
-    document.getElementById("acceptCallBtn").classList.add("d-none");
 
-    const modal = new bootstrap.Modal(document.getElementById('callModal'));
-    modal.show();
+    if (isGroup) {
+        // ── GỌI NHÓM ──
+        activeCallTargetId = "__group__"; // Đánh dấu là gọi nhóm
 
-    // Chỉ gửi tín hiệu qua SignalR để báo hiệu
-    connection.invoke("CallUser", activeCallTargetId, activeConversationId, { type: 'zego', isVideo: isVideo });
+        document.getElementById("callModalTitle").innerText = "Đang gọi nhóm...";
+        document.getElementById("callStatusText").innerText = "Đang kết nối cuộc gọi nhóm...";
+        document.getElementById("zego-call-container").classList.add("d-none");
+        document.getElementById("old-call-ui").classList.remove("d-none");
+        document.getElementById("acceptCallBtn").classList.add("d-none");
+
+        const modal = new bootstrap.Modal(document.getElementById('callModal'));
+        modal.show();
+
+        // Gửi thông báo tới tất cả thành viên nhóm
+        connection.invoke("CallGroup", activeConversationId, { type: 'zego', isVideo: isVideo });
+
+        // Người gọi tự join room ngay (không cần chờ accept)
+        isCallConnected = true;
+        joinZegoRoom(activeConversationId, isVideo, true);
+        startCallTimer();
+    } else {
+        // ── GỌI 1-1 ──
+        const targetUserId = currentConversationDetails.participants.find(p => p.id !== currentUserId)?.id;
+        if (!targetUserId) return;
+
+        activeCallTargetId = targetUserId;
+
+        document.getElementById("callModalTitle").innerText = "Đang gọi...";
+        document.getElementById("callStatusText").innerText = "Đang chờ đối phương trả lời...";
+        document.getElementById("zego-call-container").classList.add("d-none");
+        document.getElementById("old-call-ui").classList.remove("d-none");
+        document.getElementById("acceptCallBtn").classList.add("d-none");
+
+        const modal = new bootstrap.Modal(document.getElementById('callModal'));
+        modal.show();
+
+        connection.invoke("CallUser", activeCallTargetId, activeConversationId, { type: 'zego', isVideo: isVideo });
+    }
 }
 
-// Receive Call incoming
+// Receive 1-1 Call
 connection.on("ReceiveCall", function (callerId, callerName, conversationId, offer) {
     activeCallTargetId = callerId;
     currentCallOffer = offer;
-    activeConversationId = conversationId; 
-    isCallEnded = false; 
+    activeConversationId = conversationId;
+    isCallEnded = false;
 
     document.getElementById("callModalTitle").innerText = "Cuộc gọi đến";
     document.getElementById("callStatusText").innerText = `${callerName} đang gọi cho bạn...`;
     document.getElementById("zego-call-container").classList.add("d-none");
     document.getElementById("old-call-ui").classList.remove("d-none");
-    
+
     document.getElementById("acceptCallBtn").classList.remove("d-none");
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
     modal.show();
 });
 
+// Receive Group Call
+connection.on("ReceiveGroupCall", function (callerId, callerName, conversationId, offer) {
+    currentCallOffer = offer;
+    activeCallTargetId = "__group__";
+    activeConversationId = conversationId;
+    isCallEnded = false;
+
+    document.getElementById("callModalTitle").innerText = "Cuộc gọi nhóm";
+    document.getElementById("callStatusText").innerText = `${callerName} đang gọi nhóm...`;
+    document.getElementById("zego-call-container").classList.add("d-none");
+    document.getElementById("old-call-ui").classList.remove("d-none");
+
+    document.getElementById("acceptCallBtn").classList.remove("d-none");
+    const modal = new bootstrap.Modal(document.getElementById('callModal'));
+    modal.show();
+});
+
+// Accept Call (cả 1-1 và nhóm)
 window.acceptCall = function() {
     document.getElementById("acceptCallBtn").classList.add("d-none");
     isCallConnected = true;
     const isVideo = currentCallOffer.isVideo;
-    
-    connection.invoke("AnswerCall", activeCallTargetId, { type: 'zego_accepted', isVideo: isVideo });
-    joinZegoRoom(activeConversationId, isVideo);
+    const isGroup = activeCallTargetId === "__group__";
+
+    if (!isGroup) {
+        connection.invoke("AnswerCall", activeCallTargetId, { type: 'zego_accepted', isVideo: isVideo });
+    }
+    joinZegoRoom(activeConversationId, isVideo, isGroup);
     startCallTimer();
 }
 
 connection.on("CallAccepted", function (targetId, answer) {
     isCallConnected = true;
-    joinZegoRoom(activeConversationId, answer.isVideo);
+    joinZegoRoom(activeConversationId, answer.isVideo, false);
     startCallTimer();
 });
 
@@ -886,7 +933,7 @@ function startCallTimer() {
     callStartTime = new Date();
     document.getElementById("callTimer").classList.remove("d-none");
     document.getElementById("callTimer").innerText = "00:00";
-    
+
     callTimerInterval = setInterval(() => {
         const now = new Date();
         const diff = Math.floor((now - callStartTime) / 1000);
@@ -910,6 +957,7 @@ window.endCall = function(isInitiator = true) {
 
     const duration = document.getElementById("callTimer").innerText;
     const status = isCallConnected ? "Completed" : "Missed";
+    const isGroup = activeCallTargetId === "__group__";
 
     // Ẩn Zego fullscreen container
     const zegoContainer = document.getElementById("zego-full-screen-container");
@@ -919,12 +967,13 @@ window.endCall = function(isInitiator = true) {
         zp.destroy();
         zp = null;
     }
-    
-    if (isInitiator && activeConversationId && activeCallTargetId) {
-        connection.invoke("SaveCallLog", activeConversationId, activeCallTargetId, duration, currentCallType, status).catch(console.error);
+
+    if (isInitiator && activeConversationId) {
+        const receiverId = isGroup ? "group" : activeCallTargetId;
+        connection.invoke("SaveCallLog", activeConversationId, receiverId || "unknown", duration, currentCallType, status).catch(console.error);
     }
 
-    if (isInitiator && activeCallTargetId) {
+    if (isInitiator && activeCallTargetId && !isGroup) {
         connection.invoke("RejectCall", activeCallTargetId).catch(console.error);
     }
 
@@ -938,6 +987,6 @@ window.endCall = function(isInitiator = true) {
 
 connection.on("CallRejected", function (userId) {
     console.log("WebChat: Cuộc gọi bị từ chối hoặc kết thúc bởi đối phương.");
-    endCall(false); // Không phải người khởi tạo kết thúc tại đây, chỉ đóng giao diện
+    endCall(false);
 });
 
