@@ -494,6 +494,17 @@ window.openGroupSettings = function() {
         inviteSection.classList.add("d-none");
     }
 
+    // Hiện/ẩn nút Rời nhóm + Hủy nhóm dựa vào role
+    const leaveBtn = document.getElementById("leaveGroupBtn");
+    const deleteBtn = document.getElementById("deleteGroupBtn");
+    if (myRole === "Owner") {
+        leaveBtn.classList.add("d-none"); // Owner không được rời, chỉ hủy
+        deleteBtn.classList.remove("d-none");
+    } else {
+        leaveBtn.classList.remove("d-none");
+        deleteBtn.classList.add("d-none");
+    }
+
     // Render Members
     const membersList = document.getElementById("groupMembersList");
     membersList.innerHTML = "";
@@ -602,6 +613,39 @@ window.toggleReadOnly = function(isReadOnly) {
           // Re-fetch details to sync UI
           openChat(activeConversationId, currentConversationDetails.name, currentConversationDetails.avatar);
       });
+}
+
+// Rời nhóm
+window.leaveGroup = function() {
+    if (!activeConversationId) return;
+    if (!confirm("Bạn có chắc muốn rời nhóm này không?")) return;
+
+    fetch(`/api/chatapi/conversation/${activeConversationId}/leave`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('groupSettingsModal'));
+            if (modal) modal.hide();
+            location.reload(); // Refresh để cập nhật danh sách
+        })
+        .catch(err => alert('Lỗi khi rời nhóm: ' + err.message));
+}
+
+// Hủy nhóm (chỉ Owner)
+window.deleteGroup = function() {
+    if (!activeConversationId) return;
+    if (!confirm("⚠️ BẠN CÓ CHẮC CHẮN MUỐN HỦY NHÓM?\n\nHành động này sẽ xóa TOÀN BỘ tin nhắn và không thể hoàn tác!")) return;
+    if (!confirm("Xác nhận lần cuối: Hủy nhóm vĩnh viễn?")) return;
+
+    fetch(`/api/chatapi/conversation/${activeConversationId}/delete`, { method: 'DELETE' })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('groupSettingsModal'));
+            if (modal) modal.hide();
+            location.reload();
+        })
+        .catch(err => alert('Lỗi khi hủy nhóm: ' + err.message));
 }
 
 window.changeRole = function(targetUserId, newRole) {

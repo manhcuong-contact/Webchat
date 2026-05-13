@@ -20,15 +20,14 @@
     }
     #zego-full-screen-container .zego-call-toolbar {
         position: absolute;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%);
+        top: 20px;
+        right: 20px;
         z-index: 10000;
         display: flex;
         gap: 16px;
         align-items: center;
         background: rgba(0,0,0,0.6);
-        padding: 12px 24px;
+        padding: 10px 20px;
         border-radius: 50px;
         backdrop-filter: blur(10px);
     }
@@ -266,6 +265,15 @@
           <div class="list-group list-group-flush border-secondary custom-scrollbar" id="groupMembersList" style="max-height: 250px; overflow-y: auto;">
               <!-- Load bằng JS -->
           </div>
+
+          <!-- Nút hành động nhóm -->
+          <hr class="border-secondary my-3">
+          <button class="btn btn-outline-warning w-100 mb-2" id="leaveGroupBtn" onclick="leaveGroup()">
+              <i class="bi bi-box-arrow-left me-1"></i> Rời nhóm
+          </button>
+          <button class="btn btn-danger w-100 d-none" id="deleteGroupBtn" onclick="deleteGroup()">
+              <i class="bi bi-trash me-1"></i> Hủy nhóm (Xóa vĩnh viễn)
+          </button>
       </div>
     </div>
   </div>

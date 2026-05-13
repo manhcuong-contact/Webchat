@@ -332,6 +332,59 @@ public class ChatApiController : ControllerBase
 
         return Ok(new { url = fileUrl, type = type });
     }
+
+    // ==================== Quản lý nhóm: Rời nhóm + Hủy nhóm ====================
+
+    [HttpPost("conversation/{conversationId}/leave")]
+    public async Task<IActionResult> LeaveGroup(string conversationId)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null) return NotFound();
+        if (!conversation.IsGroup) return BadRequest(new { message = "Chỉ áp dụng cho nhóm." });
+        if (!conversation.Participants.Contains(currentUserId)) return BadRequest(new { message = "Bạn không thuộc nhóm này." });
+
+        // Owner không thể rời, phải chuyển quyền hoặc hủy nhóm
+        if (conversation.Owners.Contains(currentUserId))
+        {
+            return BadRequest(new { message = "Chủ nhóm không thể rời. Hãy chuyển quyền hoặc hủy nhóm." });
+        }
+
+        // Xóa khỏi participants, admins
+        var update = Builders<Conversation>.Update
+            .Pull(c => c.Participants, currentUserId)
+            .Pull(c => c.Admins, currentUserId)
+            .Pull(c => c.MutedByUsers, currentUserId);
+        await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+
+        return Ok(new { message = "Đã rời nhóm thành công." });
+    }
+
+    [HttpDelete("conversation/{conversationId}/delete")]
+    public async Task<IActionResult> DeleteGroup(string conversationId)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null) return NotFound();
+        if (!conversation.IsGroup) return BadRequest(new { message = "Chỉ áp dụng cho nhóm." });
+
+        // Chỉ Owner mới được hủy nhóm
+        if (!conversation.Owners.Contains(currentUserId))
+        {
+            return Forbid();
+        }
+
+        // Xóa tất cả tin nhắn của nhóm
+        await _mongoService.Messages.DeleteManyAsync(m => m.ConversationId == conversationId);
+        // Xóa conversation
+        await _mongoService.Conversations.DeleteOneAsync(c => c.Id == conversationId);
+
+        return Ok(new { message = "Đã hủy nhóm và xóa toàn bộ dữ liệu." });
+    }
 }
 
 public class CreateGroupRequest
