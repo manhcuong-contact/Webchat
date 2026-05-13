@@ -228,6 +228,10 @@ window.performSearch = function() {
                 `;
                 list.insertAdjacentHTML('beforeend', html);
             });
+        })
+        .catch(err => {
+            console.error('Search error:', err);
+            alert('Lỗi khi gọi API tìm kiếm: ' + err.message);
         });
 }
 
@@ -480,7 +484,7 @@ window.startRecording = function() {
 
             const btn = document.getElementById("recordAudioBtn");
             btn.classList.replace("btn-danger", "btn-warning");
-            btn.innerHTML = \<i class="bi bi-record-circle"></i>\;
+            btn.innerHTML = `<i class="bi bi-record-circle"></i>`;
 
             mediaRecorder.addEventListener("dataavailable", event => {
                 audioChunks.push(event.data);
@@ -492,7 +496,7 @@ window.startRecording = function() {
                 
                 // Return original button state
                 btn.classList.replace("btn-warning", "btn-danger");
-                btn.innerHTML = \<i class="bi bi-mic"></i>\;
+                btn.innerHTML = `<i class="bi bi-mic"></i>`;
 
                 // Upload
                 const formData = new FormData();
@@ -594,7 +598,7 @@ connection.on("ReceiveCall", function (callerId, callerName, conversationId, off
     currentCallOffer = offer;
 
     document.getElementById("callModalTitle").innerText = "Cuộc gọi đến";
-    document.getElementById("callStatusText").innerText = \\ đang gọi cho bạn...\;
+    document.getElementById("callStatusText").innerText = `${callerName} đang gọi cho bạn...`;
     
     document.getElementById("acceptCallBtn").classList.remove("d-none");
     const modal = new bootstrap.Modal(document.getElementById('callModal'));

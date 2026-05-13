@@ -28,11 +28,12 @@ public class UserController : ControllerBase
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         // Case-insensitive search by DisplayName or Username using Regex for better compatibility
+        var escapedQ = System.Text.RegularExpressions.Regex.Escape(q);
         var filter = Builders<User>.Filter.And(
             Builders<User>.Filter.Ne(u => u.Id, currentUserId),
             Builders<User>.Filter.Or(
-                Builders<User>.Filter.Regex(u => u.DisplayName, new BsonRegularExpression(q, "i")),
-                Builders<User>.Filter.Regex(u => u.Username, new BsonRegularExpression(q, "i"))
+                Builders<User>.Filter.Regex(u => u.DisplayName, new BsonRegularExpression(escapedQ, "i")),
+                Builders<User>.Filter.Regex(u => u.Username, new BsonRegularExpression(escapedQ, "i"))
             )
         );
 
