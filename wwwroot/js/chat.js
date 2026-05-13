@@ -732,13 +732,16 @@ let isCallEnded = false;
 let currentCallType = "thoại"; 
 
 async function joinZegoRoom(roomID, isVideo) {
-    if (zp) return; // Tránh join nhiều lần
+    if (zp) return; 
     
+    const container = document.getElementById("zego-full-screen-container");
+    container.style.display = "block";
+
     const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(appID, serverSecret, roomID, currentUserId, currentUserName || "User_" + currentUserId);
     zp = ZegoUIKitPrebuilt.create(kitToken);
     
     zp.joinRoom({
-        container: document.getElementById("zego-call-container"),
+        container: container,
         scenario: {
             mode: ZegoUIKitPrebuilt.OneONoneCall,
         },
@@ -750,13 +753,15 @@ async function joinZegoRoom(roomID, isVideo) {
         showMyMicrophoneToggleButton: true,
         showAudioVideoSettingsButton: true,
         onLeaveRoom: () => {
+            container.style.display = "none";
             endCall();
         }
     });
     
-    document.getElementById("old-call-ui").classList.add("d-none");
-    document.getElementById("zego-call-container").classList.remove("d-none");
-    document.getElementById("zego-call-container").style.height = "550px";
+    // Đóng modal cũ để không che khuất
+    const callModalElement = document.getElementById('callModal');
+    const callModal = bootstrap.Modal.getInstance(callModalElement);
+    if (callModal) callModal.hide();
 }
 
 // Start a call

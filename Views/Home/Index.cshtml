@@ -7,6 +7,16 @@
     .footer {
         display: none !important;
     }
+    #zego-full-screen-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        background: #000;
+        display: none;
+    }
 </style>
 
 <div class="chat-layout glass-effect mt-3">
@@ -258,6 +268,9 @@
     </div>
   </div>
 </div>
+
+<!-- Zego Full Screen Container -->
+<div id="zego-full-screen-container"></div>
 
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
