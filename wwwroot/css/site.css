@@ -165,17 +165,28 @@ body::before {
     background: rgba(30, 41, 59, 0.4);
     display: flex;
     flex-direction: column;
-    min-width: 0; /* Quan trọng: giúp flex-item không bị tràn */
+    min-width: 0;
+    height: 100%; /* Đảm bảo chiếm hết chiều cao cha */
+    overflow: hidden; /* Ngăn nội dung con làm nở khung */
 }
 
 .chat-header, .sidebar-header {
-    flex-shrink: 0; /* Đảm bảo header không bị bóp méo */
-    white-space: nowrap; /* Tránh nhảy dòng cho các nút */
+    flex-shrink: 0;
+    white-space: nowrap;
+    z-index: 10;
 }
 
-.chat-actions, .sidebar-header div {
-    display: flex;
-    flex-wrap: nowrap;
+.chat-input {
+    flex-shrink: 0; /* Không bao giờ bị bóp nghẹt hay đẩy đi */
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--glass-border);
+}
+
+#messagesList {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0; /* Quan trọng để flex-child có thể cuộn */
 }
 
 .conversation-item:hover {
