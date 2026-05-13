@@ -142,6 +142,23 @@ public class UserController : ControllerBase
         return Ok(new { message = "Request declined" });
     }
 
+    [HttpPost("friend-remove/{friendId}")]
+    public async Task<IActionResult> RemoveFriend(string friendId)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        // Xóa bất kỳ mối quan hệ nào (Accepted, Pending, etc.) giữa 2 người này
+        var filter = Builders<Friendship>.Filter.Where(f =>
+            (f.RequesterId == currentUserId && f.ReceiverId == friendId) ||
+            (f.RequesterId == friendId && f.ReceiverId == currentUserId)
+        );
+
+        var result = await _mongoService.Friendships.DeleteOneAsync(filter);
+        if (result.DeletedCount == 0) return NotFound("Friendship not found");
+
+        return Ok(new { message = "Friend removed" });
+    }
+
     [HttpGet("friend-requests")]
     public async Task<IActionResult> GetPendingRequests()
     {

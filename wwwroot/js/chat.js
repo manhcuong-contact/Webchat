@@ -275,7 +275,10 @@ window.viewProfile = function(userId) {
             let actionBtn = '';
             if (!data.isSelf) {
                 if (data.friendshipStatus === 'Accepted') {
-                    actionBtn = `<button class="btn btn-primary w-100 mt-3" onclick="startPrivateChat('${data.id}')">Nhắn tin</button>`;
+                    actionBtn = `
+                        <button class="btn btn-primary w-100 mt-3" onclick="startPrivateChat('${data.id}')">Nhắn tin</button>
+                        <button class="btn btn-outline-danger w-100 mt-2" onclick="unfriend('${data.id}')">Hủy kết bạn</button>
+                    `;
                 } else if (data.friendshipStatus === 'Pending') {
                     // Logic here is simple, just show pending
                     actionBtn = `<button class="btn btn-secondary w-100 mt-3" disabled>Đang chờ xác nhận</button>`;
@@ -363,6 +366,20 @@ window.declineFriendRequest = function(requesterId) {
             loadFriendRequests();
         })
         .catch(err => alert('Lỗi khi từ chối kết bạn'));
+}
+
+window.unfriend = function(friendId) {
+    if(!confirm("Bạn có chắc muốn hủy kết bạn? Việc này sẽ xóa mối quan hệ bạn bè giữa hai người.")) return;
+    fetch(`/api/user/friend-remove/${friendId}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            alert('Đã hủy kết bạn thành công.');
+            const profileModal = bootstrap.Modal.getInstance(document.getElementById('userProfileModal'));
+            if (profileModal) profileModal.hide();
+            loadConversations();
+            loadFriends(); // Reload friends list if any other UI depends on it
+        })
+        .catch(err => alert('Lỗi khi hủy kết bạn'));
 }
 
 // ============================================================================
