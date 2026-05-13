@@ -190,6 +190,23 @@ body::before {
     backdrop-filter: blur(16px);
 }
 
+/* Tăng khoảng cách cho tên và trạng thái trong chat header */
+.chat-header h6 {
+    line-height: 1.2;
+    margin-bottom: 2px !important;
+}
+
+.chat-header small {
+    display: block;
+    line-height: 1;
+}
+
+/* Làm nổi bật placeholder */
+#messageInput::placeholder, #searchInput::placeholder {
+    color: rgba(255, 255, 255, 0.4) !important;
+    font-size: 0.9rem;
+}
+
 /* Scrollbar customization */
 .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
