@@ -25,6 +25,11 @@ connection.on("ReceiveMessage", function (message) {
     loadConversations(); 
 });
 
+connection.on("UpdateConversationList", function () {
+    console.log("WebChat: Cập nhật danh sách hội thoại...");
+    loadConversations();
+});
+
 window.backToSidebar = function() {
     document.getElementById("chatArea").classList.remove("active");
 }

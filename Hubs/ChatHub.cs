@@ -58,15 +58,17 @@ public class ChatHub : Hub
 
         await _mongoService.Messages.InsertOneAsync(message);
 
+        // Cập nhật cuộc hội thoại cuối
         var update = Builders<Conversation>.Update
             .Set(c => c.LastMessage, type == "text" ? content : $"[{type.ToUpper()}] Được gửi đi")
             .Set(c => c.UpdatedAt, DateTime.UtcNow);
         await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
 
-        // Lọc ra danh sách những người ko Mute nhóm để đẩy SignalR
-        var targetUsers = conversation.Participants.Where(p => !conversation.MutedByUsers.Contains(p)).ToList();
+        // Gửi cho tất cả mọi người trong nhóm hội thoại
+        await Clients.Group(conversationId).SendAsync("ReceiveMessage", message);
 
-        await Clients.Users(targetUsers).SendAsync("ReceiveMessage", message);
+        // Thông báo cho các thành viên cập nhật danh sách hội thoại (quan trọng cho tin nhắn đầu tiên)
+        await Clients.Users(conversation.Participants).SendAsync("UpdateConversationList");
     }
 
     // WebRTC Signaling
