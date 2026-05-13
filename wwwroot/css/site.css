@@ -114,12 +114,7 @@ body::before {
     color: white;
 }
 
-.footer {
-    border-top: 1px solid var(--glass-border);
-    padding: 2rem 0;
-    color: var(--text-muted);
-    background: transparent;
-}
+
 
 /* Animations */
 @keyframes fadeIn {
