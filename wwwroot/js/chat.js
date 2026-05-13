@@ -1,6 +1,7 @@
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("/chatHub")
     .build();
+console.log("WebChat: chat.js đã được nạp thành công.");
 
 let activeConversationId = null;
 let currentConversationDetails = null; // Store fetched data about active chat
@@ -193,6 +194,7 @@ function scrollToBottom() {
 
 // ========================== Search & Friends Logic ==========================
 window.performSearch = function() {
+    console.log("WebChat: Hàm performSearch đang được gọi...");
     const query = document.getElementById("searchInput").value.trim();
     if (!query) return;
 
