@@ -200,11 +200,20 @@ function appendMessage(msg) {
         </div>
     `;
     msgList.insertAdjacentHTML('beforeend', html);
+    scrollToBottom();
 }
 
 function scrollToBottom() {
     const list = document.getElementById("messagesList");
-    list.scrollTop = list.scrollHeight;
+    if (list) {
+        // Sử dụng setTimeout để đảm bảo trình duyệt đã render xong nội dung mới
+        setTimeout(() => {
+            list.scrollTo({
+                top: list.scrollHeight,
+                behavior: 'smooth' // Cuộn mượt mà
+            });
+        }, 50);
+    }
 }
 
 // ========================== Search & Friends Logic ==========================
