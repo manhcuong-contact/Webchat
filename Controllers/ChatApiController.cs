@@ -23,8 +23,17 @@ public class ChatApiController : ControllerBase
     public async Task<IActionResult> GetUsers()
     {
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        // Bỏ qua current user
-        var users = await _mongoService.Users.Find(u => u.Id != currentUserId).ToListAsync();
+        
+        // 1. Lấy danh sách ID của những người đã kết bạn (Accepted)
+        var friendships = await _mongoService.Friendships.Find(f =>
+            (f.RequesterId == currentUserId || f.ReceiverId == currentUserId) && f.Status == "Accepted"
+        ).ToListAsync();
+
+        var friendIds = friendships.Select(f => f.RequesterId == currentUserId ? f.ReceiverId : f.RequesterId).ToList();
+
+        // 2. Lấy thông tin người dùng từ danh sách ID bạn bè đó
+        var users = await _mongoService.Users.Find(u => friendIds.Contains(u.Id)).ToListAsync();
+        
         return Ok(users.Select(u => new { u.Id, u.Username, u.DisplayName, u.Avatar }));
     }
 
