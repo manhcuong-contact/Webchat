@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
+using MongoDB.Bson;
 using WEBchat.Models;
 using WEBchat.Services;
 
@@ -26,11 +27,16 @@ public class UserController : ControllerBase
 
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        // Case-insensitive search by DisplayName or Username
-        var users = await _mongoService.Users.Find(u =>
-            u.Id != currentUserId &&
-            (u.DisplayName.ToLower().Contains(q.ToLower()) || u.Username.ToLower().Contains(q.ToLower()))
-        ).Limit(20).ToListAsync();
+        // Case-insensitive search by DisplayName or Username using Regex for better compatibility
+        var filter = Builders<User>.Filter.And(
+            Builders<User>.Filter.Ne(u => u.Id, currentUserId),
+            Builders<User>.Filter.Or(
+                Builders<User>.Filter.Regex(u => u.DisplayName, new BsonRegularExpression(q, "i")),
+                Builders<User>.Filter.Regex(u => u.Username, new BsonRegularExpression(q, "i"))
+            )
+        );
+
+        var users = await _mongoService.Users.Find(filter).Limit(20).ToListAsync();
 
         var result = new List<object>();
         foreach (var u in users)
