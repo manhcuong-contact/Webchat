@@ -192,6 +192,8 @@ function appendMessage(msg) {
         contentHtml = `<audio controls src="${msg.content}" style="max-width: 250px; height: 40px;"></audio>`;
     } else if (msg.messageType === 'file') {
         contentHtml = `<a href="${msg.content}" target="_blank" class="text-white text-decoration-underline"><i class="bi bi-file-earmark"></i> Tải tập tin đính kèm</a>`;
+    } else if (msg.messageType === 'call_log') {
+        contentHtml = `<div class="call-log-msg"><i class="bi bi-telephone-outbound me-2"></i>${msg.content}</div>`;
     } else {
         contentHtml = `<div>${msg.content}</div>`;
     }
@@ -731,6 +733,12 @@ const iceServers = {
     ]
 };
 
+let callTimerInterval;
+let callStartTime;
+let pendingIceCandidates = [];
+let isCallConnected = false;
+let currentCallType = "thoại"; // Default to voice
+
 // Start a call
 window.startCall = function(isVideo) {
     if (!activeConversationId || currentConversationDetails.isGroup) {
@@ -743,8 +751,10 @@ window.startCall = function(isVideo) {
     if (!targetUserId) return;
 
     activeCallTargetId = targetUserId;
+    currentCallType = isVideo ? "video" : "thoại";
     document.getElementById("callModalTitle").innerText = "Đang gọi...";
     document.getElementById("callStatusText").innerText = "Đang kết nối...";
+    document.getElementById("callTimer").classList.add("d-none");
     document.getElementById("acceptCallBtn").classList.add("d-none");
 
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
@@ -800,9 +810,11 @@ window.startCall = function(isVideo) {
 connection.on("ReceiveCall", function (callerId, callerName, conversationId, offer) {
     activeCallTargetId = callerId;
     currentCallOffer = offer;
+    activeConversationId = conversationId; 
 
     document.getElementById("callModalTitle").innerText = "Cuộc gọi đến";
     document.getElementById("callStatusText").innerText = `${callerName} đang gọi cho bạn...`;
+    document.getElementById("callTimer").classList.add("d-none");
     
     document.getElementById("acceptCallBtn").classList.remove("d-none");
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
@@ -843,10 +855,15 @@ window.acceptCall = function() {
             };
 
             peerConnection.setRemoteDescription(new RTCSessionDescription(currentCallOffer))
-                .then(() => peerConnection.createAnswer())
+                .then(() => {
+                    processPendingIceCandidates();
+                    return peerConnection.createAnswer();
+                })
                 .then(answer => peerConnection.setLocalDescription(answer))
                 .then(() => {
                     connection.invoke("AnswerCall", activeCallTargetId, peerConnection.localDescription);
+                    isCallConnected = true;
+                    startCallTimer();
                 });
         })
         .catch(err => {
@@ -862,16 +879,56 @@ window.acceptCall = function() {
 
 connection.on("CallAccepted", function (targetId, answer) {
     document.getElementById("callStatusText").innerText = "Đã kết nối";
-    peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    peerConnection.setRemoteDescription(new RTCSessionDescription(answer)).then(() => {
+        isCallConnected = true;
+        startCallTimer();
+        processPendingIceCandidates();
+    });
 });
 
 connection.on("ReceiveICECandidate", function (candidate) {
-    if (peerConnection) {
+    if (peerConnection && peerConnection.remoteDescription) {
         peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
+    } else {
+        pendingIceCandidates.push(candidate);
     }
 });
 
+function processPendingIceCandidates() {
+    if (peerConnection && peerConnection.remoteDescription) {
+        pendingIceCandidates.forEach(candidate => {
+            peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
+        });
+        pendingIceCandidates = [];
+    }
+}
+
+function startCallTimer() {
+    callStartTime = new Date();
+    document.getElementById("callTimer").classList.remove("d-none");
+    document.getElementById("callTimer").innerText = "00:00";
+    
+    callTimerInterval = setInterval(() => {
+        const now = new Date();
+        const diff = Math.floor((now - callStartTime) / 1000);
+        const mins = Math.floor(diff / 60).toString().padStart(2, '0');
+        const secs = (diff % 60).toString().padStart(2, '0');
+        document.getElementById("callTimer").innerText = `${mins}:${secs}`;
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+    }
+    document.getElementById("callTimer").classList.add("d-none");
+}
+
 window.endCall = function() {
+    const duration = document.getElementById("callTimer").innerText;
+    const status = isCallConnected ? "Completed" : "Missed";
+
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
@@ -881,10 +938,20 @@ window.endCall = function() {
         localStream = null;
         document.getElementById("localVideo").srcObject = null;
     }
+    
+    // Log call if connected or if we are the one who rejected
+    if (activeConversationId && activeCallTargetId) {
+        connection.invoke("SaveCallLog", activeConversationId, activeCallTargetId, duration, currentCallType, status).catch(console.error);
+    }
+
     if (activeCallTargetId) {
         connection.invoke("RejectCall", activeCallTargetId).catch(console.error);
     }
+
+    stopCallTimer();
+    isCallConnected = false;
     activeCallTargetId = null;
+    pendingIceCandidates = [];
     document.getElementById("remoteVideo").srcObject = null;
 
     const callModal = bootstrap.Modal.getInstance(document.getElementById('callModal'));

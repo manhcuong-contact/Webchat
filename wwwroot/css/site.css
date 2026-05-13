@@ -324,3 +324,11 @@ body::before {
     word-break: break-word;
     font-size: 0.95rem;
 }
+
+.call-log-msg {
+    font-style: italic;
+    font-size: 0.85rem;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+}

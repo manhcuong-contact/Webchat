@@ -94,4 +94,31 @@ public class ChatHub : Hub
     {
         await Clients.User(callerId).SendAsync("CallRejected", Context.UserIdentifier);
     }
+
+    public async Task SaveCallLog(string conversationId, string receiverId, string duration, string type, string status)
+    {
+        var senderId = Context.UserIdentifier;
+        if (string.IsNullOrEmpty(senderId)) return;
+
+        var senderName = Context.User?.Identity?.Name ?? "Người dùng";
+
+        var message = new Message
+        {
+            ConversationId = conversationId,
+            SenderId = senderId,
+            SenderName = senderName,
+            Content = status == "Completed" ? $"Cuộc gọi {type} đã kết thúc ({duration})" : $"Cuộc gọi {type} bị bỏ lỡ",
+            MessageType = "call_log",
+            Timestamp = DateTime.UtcNow
+        };
+
+        await _mongoService.Messages.InsertOneAsync(message);
+
+        var update = Builders<Conversation>.Update
+            .Set(c => c.LastMessage, message.Content)
+            .Set(c => c.UpdatedAt, DateTime.UtcNow);
+        await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+
+        await Clients.Group(conversationId).SendAsync("ReceiveMessage", message);
+    }
 }

@@ -20,4 +20,5 @@ public class MongoService
     public IMongoCollection<Message> Messages => _database.GetCollection<Message>("Messages");
     public IMongoCollection<Conversation> Conversations => _database.GetCollection<Conversation>("Conversations");
     public IMongoCollection<Friendship> Friendships => _database.GetCollection<Friendship>("Friendships");
+    public IMongoCollection<CallHistory> CallHistory => _database.GetCollection<CallHistory>("CallHistory");
 }
