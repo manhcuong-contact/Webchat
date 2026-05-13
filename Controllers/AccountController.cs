@@ -41,7 +41,8 @@ public class AccountController : Controller
                 var claims = new List<Claim>
                 {
                     new Claim(ClaimTypes.NameIdentifier, user.Id!),
-                    new Claim(ClaimTypes.Name, user.Username),
+                    new Claim(ClaimTypes.Name, user.DisplayName),
+                    new Claim("Username", user.Username),
                     new Claim("DisplayName", user.DisplayName),
                     new Claim("Avatar", user.Avatar ?? "/images/default-avatar.png")
                 };
@@ -84,6 +85,13 @@ public class AccountController : Controller
             if (existingUser != null)
             {
                 ModelState.AddModelError("Username", "Tên đăng nhập này đã được sử dụng.");
+                return View(model);
+            }
+
+            var existingDisplayName = await _mongoService.Users.Find(u => u.DisplayName == model.DisplayName).FirstOrDefaultAsync();
+            if (existingDisplayName != null)
+            {
+                ModelState.AddModelError("DisplayName", "Tên hiển thị này đã được sử dụng.");
                 return View(model);
             }
 
