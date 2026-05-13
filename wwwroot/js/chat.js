@@ -729,9 +729,13 @@ const iceServers = {
     iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
+        { urls: "stun:stun.services.mozilla.com" }
     ],
-    iceTransportPolicy: 'all'
+    iceTransportPolicy: 'all',
+    iceCandidatePoolSize: 10
 };
 
 let callTimerInterval;
@@ -783,12 +787,24 @@ window.startCall = function(isVideo) {
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = event => {
-                console.log("WebChat: Nhận được luồng từ xa", event.streams);
+                console.log("WebChat: Nhận được track từ xa:", event.track.kind);
                 const remoteVideo = document.getElementById("remoteVideo");
+                
                 if (event.streams && event.streams[0]) {
                     remoteVideo.srcObject = event.streams[0];
-                    remoteVideo.play().catch(e => console.warn("Tự động phát bị chặn:", e));
+                } else {
+                    if (!remoteStream) {
+                        remoteStream = new MediaStream();
+                        remoteVideo.srcObject = remoteStream;
+                    }
+                    remoteStream.addTrack(event.track);
                 }
+                
+                remoteVideo.play().catch(e => {
+                    console.warn("Tự động phát bị chặn, đang thử lại...", e);
+                    // Thử phát lại sau 1s nếu bị chặn
+                    setTimeout(() => remoteVideo.play().catch(console.error), 1000);
+                });
             };
 
             peerConnection.onconnectionstatechange = () => {
@@ -860,12 +876,23 @@ window.acceptCall = function() {
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = event => {
-                console.log("WebChat: Nhận được luồng từ xa (người nhận)", event.streams);
+                console.log("WebChat: Nhận được track từ xa (người nhận):", event.track.kind);
                 const remoteVideo = document.getElementById("remoteVideo");
+
                 if (event.streams && event.streams[0]) {
                     remoteVideo.srcObject = event.streams[0];
-                    remoteVideo.play().catch(e => console.warn("Tự động phát bị chặn:", e));
+                } else {
+                    if (!remoteStream) {
+                        remoteStream = new MediaStream();
+                        remoteVideo.srcObject = remoteStream;
+                    }
+                    remoteStream.addTrack(event.track);
                 }
+
+                remoteVideo.play().catch(e => {
+                    console.warn("Tự động phát bị chặn, đang thử lại...", e);
+                    setTimeout(() => remoteVideo.play().catch(console.error), 1000);
+                });
             };
 
             peerConnection.onconnectionstatechange = () => {
