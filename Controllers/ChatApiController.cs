@@ -13,10 +13,12 @@ namespace WEBchat.Controllers;
 public class ChatApiController : ControllerBase
 {
     private readonly MongoService _mongoService;
+    private readonly IWebHostEnvironment _env;
 
-    public ChatApiController(MongoService mongoService)
+    public ChatApiController(MongoService mongoService, IWebHostEnvironment env)
     {
         _mongoService = mongoService;
+        _env = env;
     }
 
     [HttpGet("users")]
@@ -289,7 +291,7 @@ public class ChatApiController : ControllerBase
             return BadRequest("File type not allowed.");
 
         // Create folder if not exists
-        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+        var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads");
         if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
 
         var uniqueName = Guid.NewGuid().ToString() + ext;
