@@ -153,12 +153,15 @@
       <div class="modal-header border-secondary">
         <h5 class="modal-title" id="callModalTitle">Đang gọi...</h5>
       </div>
-      <div class="modal-body text-center">
-          <p id="callStatusText">Đang chờ kết nối...</p>
-          <div id="callTimer" class="mb-2 fw-bold text-success d-none">00:00</div>
-          <div class="d-flex justify-content-center gap-2 mb-3">
-              <video id="remoteVideo" autoplay playsinline style="width: 100%; max-width: 400px; background: #000; border-radius: 8px;"></video>
-              <video id="localVideo" autoplay playsinline muted style="width: 150px; background: #222; border-radius: 8px; position: absolute; bottom: 20px; right: 20px; border: 2px solid #555;"></video>
+      <div class="modal-body text-center p-0">
+          <div id="zego-call-container" style="width: 100%; height: 500px;"></div>
+          <div id="old-call-ui" class="p-3">
+              <p id="callStatusText">Đang chờ kết nối...</p>
+              <div id="callTimer" class="mb-2 fw-bold text-success d-none">00:00</div>
+              <div class="d-flex justify-content-center gap-2 mb-3 d-none">
+                  <video id="remoteVideo" autoplay playsinline style="width: 100%; max-width: 400px; background: #000; border-radius: 8px;"></video>
+                  <video id="localVideo" autoplay playsinline muted style="width: 150px; background: #222; border-radius: 8px; position: absolute; bottom: 20px; right: 20px; border: 2px solid #555;"></video>
+              </div>
           </div>
       </div>
       <div class="modal-footer border-secondary justify-content-center" id="callActions">

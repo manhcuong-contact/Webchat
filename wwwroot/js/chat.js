@@ -720,31 +720,38 @@ window.stopRecording = function() {
 }
 
 // ========================== WebRTC Logic ==========================
-let localStream;
-let remoteStream;
-let peerConnection;
+// ========================== ZEGOCLOUD Logic ==========================
+const appID = 1147548185;
+const serverSecret = "2b9dd39405451e24c152ceced266c7c1";
+
+let zp = null;
 let activeCallTargetId = null;
-let currentCallOffer = null; // Store offer for receiving side
-
-const iceServers = {
-    iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" },
-        { urls: "stun:stun3.l.google.com:19302" },
-        { urls: "stun:stun4.l.google.com:19302" },
-        { urls: "stun:stun.services.mozilla.com" }
-    ],
-    iceTransportPolicy: 'all',
-    iceCandidatePoolSize: 10
-};
-
-let callTimerInterval;
-let callStartTime;
-let pendingIceCandidates = [];
+let currentCallOffer = null; 
 let isCallConnected = false;
 let isCallEnded = false;
-let currentCallType = "thoại"; // Default to voice
+let currentCallType = "thoại"; 
+
+async function joinZegoRoom(roomID, isVideo) {
+    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(appID, serverSecret, roomID, currentUserId, currentUserName);
+    zp = ZegoUIKitPrebuilt.create(kitToken);
+    
+    zp.joinRoom({
+        container: document.getElementById("zego-call-container"),
+        scenario: {
+            mode: ZegoUIKitPrebuilt.OneONoneCall,
+        },
+        showPreJoinView: false,
+        turnOnMicrophoneWhenJoining: true,
+        turnOnCameraWhenJoining: isVideo,
+        showScreenSharingButton: true,
+        onLeaveRoom: () => {
+            endCall();
+        }
+    });
+    
+    document.getElementById("old-call-ui").classList.add("d-none");
+    document.getElementById("zego-call-container").classList.remove("d-none");
+}
 
 // Start a call
 window.startCall = function(isVideo) {
@@ -752,91 +759,25 @@ window.startCall = function(isVideo) {
         alert("Cuộc gọi chỉ hỗ trợ chat cá nhân 2 người.");
         return;
     }
-    isCallEnded = false; // Reset trạng thái để có thể nhấn Kết thúc
+    isCallEnded = false;
 
-    // Get the other participant
     const targetUserId = currentConversationDetails.participants.find(p => p.id !== currentUserId)?.id;
     if (!targetUserId) return;
 
     activeCallTargetId = targetUserId;
     currentCallType = isVideo ? "video" : "thoại";
+    
     document.getElementById("callModalTitle").innerText = "Đang gọi...";
-    document.getElementById("callStatusText").innerText = "Đang kết nối...";
-    document.getElementById("callTimer").classList.add("d-none");
+    document.getElementById("callStatusText").innerText = "Đang chờ đối phương trả lời...";
+    document.getElementById("zego-call-container").classList.add("d-none");
+    document.getElementById("old-call-ui").classList.remove("d-none");
     document.getElementById("acceptCallBtn").classList.add("d-none");
 
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
     modal.show();
 
-    const constraints = { video: isVideo, audio: true };
-    navigator.mediaDevices.getUserMedia(constraints)
-        .catch(err => {
-            console.warn("Retrying with audio only...", err);
-            return navigator.mediaDevices.getUserMedia({ audio: true });
-        })
-        .then(stream => {
-            localStream = stream;
-            document.getElementById("localVideo").srcObject = stream;
-            if (!stream.getVideoTracks().length) {
-                document.getElementById("localVideo").classList.add("d-none");
-            } else {
-                document.getElementById("localVideo").classList.remove("d-none");
-            }
-
-            peerConnection = new RTCPeerConnection(iceServers);
-
-            // Add local stream tracks
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-            peerConnection.ontrack = event => {
-                console.log("WebChat: Nhận được track từ xa:", event.track.kind);
-                const remoteVideo = document.getElementById("remoteVideo");
-                
-                if (event.streams && event.streams[0]) {
-                    remoteVideo.srcObject = event.streams[0];
-                } else {
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
-                        remoteVideo.srcObject = remoteStream;
-                    }
-                    remoteStream.addTrack(event.track);
-                }
-                
-                remoteVideo.play().catch(e => {
-                    console.warn("Tự động phát bị chặn, đang thử lại...", e);
-                    // Thử phát lại sau 1s nếu bị chặn
-                    setTimeout(() => remoteVideo.play().catch(console.error), 1000);
-                });
-            };
-
-            peerConnection.onconnectionstatechange = () => {
-                console.log("WebChat: Trạng thái kết nối:", peerConnection.connectionState);
-                if (peerConnection.connectionState === "connected") {
-                    document.getElementById("callStatusText").innerText = "Đã kết nối";
-                } else if (peerConnection.connectionState === "failed" || peerConnection.connectionState === "disconnected") {
-                    console.error("WebChat: Kết nối thất bại hoặc bị ngắt.");
-                }
-            };
-
-            // On ICE candidate setup
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    connection.invoke("SendICECandidate", activeCallTargetId, event.candidate);
-                }
-            };
-
-            // Create Offer
-            peerConnection.createOffer()
-                .then(offer => peerConnection.setLocalDescription(offer))
-                .then(() => {
-                    connection.invoke("CallUser", activeCallTargetId, activeConversationId, peerConnection.localDescription);
-                });
-        })
-        .catch(err => {
-            alert('Lỗi truy cập Camera/Microphone');
-            console.error(err);
-            modal.hide();
-        });
+    // Chỉ gửi tín hiệu qua SignalR để báo hiệu
+    connection.invoke("CallUser", activeCallTargetId, activeConversationId, { type: 'zego', isVideo: isVideo });
 }
 
 // Receive Call incoming
@@ -848,99 +789,27 @@ connection.on("ReceiveCall", function (callerId, callerName, conversationId, off
 
     document.getElementById("callModalTitle").innerText = "Cuộc gọi đến";
     document.getElementById("callStatusText").innerText = `${callerName} đang gọi cho bạn...`;
-    document.getElementById("callTimer").classList.add("d-none");
+    document.getElementById("zego-call-container").classList.add("d-none");
+    document.getElementById("old-call-ui").classList.remove("d-none");
     
     document.getElementById("acceptCallBtn").classList.remove("d-none");
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
     modal.show();
 });
 
-// Accept Call
 window.acceptCall = function() {
-    document.getElementById("acceptCallBtn").classList.add("d-none");
-    document.getElementById("callStatusText").innerText = "Đã kết nối";
-
-    const constraints = { video: true, audio: true };
-    navigator.mediaDevices.getUserMedia(constraints)
-        .catch(err => {
-            console.warn("Receiver fallback to audio only", err);
-            return navigator.mediaDevices.getUserMedia({ audio: true });
-        })
-        .then(stream => {
-            localStream = stream;
-            document.getElementById("localVideo").srcObject = stream;
-            if (!stream.getVideoTracks().length) {
-                document.getElementById("localVideo").classList.add("d-none");
-            } else {
-                document.getElementById("localVideo").classList.remove("d-none");
-            }
-
-            peerConnection = new RTCPeerConnection(iceServers);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-            peerConnection.ontrack = event => {
-                console.log("WebChat: Nhận được track từ xa (người nhận):", event.track.kind);
-                const remoteVideo = document.getElementById("remoteVideo");
-
-                if (event.streams && event.streams[0]) {
-                    remoteVideo.srcObject = event.streams[0];
-                } else {
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
-                        remoteVideo.srcObject = remoteStream;
-                    }
-                    remoteStream.addTrack(event.track);
-                }
-
-                remoteVideo.play().catch(e => {
-                    console.warn("Tự động phát bị chặn, đang thử lại...", e);
-                    setTimeout(() => remoteVideo.play().catch(console.error), 1000);
-                });
-            };
-
-            peerConnection.onconnectionstatechange = () => {
-                console.log("WebChat: Trạng thái kết nối (người nhận):", peerConnection.connectionState);
-                if (peerConnection.connectionState === "connected") {
-                    document.getElementById("callStatusText").innerText = "Đã kết nối";
-                }
-            };
-
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    connection.invoke("SendICECandidate", activeCallTargetId, event.candidate);
-                }
-            };
-
-            peerConnection.setRemoteDescription(new RTCSessionDescription(currentCallOffer))
-                .then(() => {
-                    processPendingIceCandidates();
-                    return peerConnection.createAnswer();
-                })
-                .then(answer => peerConnection.setLocalDescription(answer))
-                .then(() => {
-                    connection.invoke("AnswerCall", activeCallTargetId, peerConnection.localDescription);
-                    isCallConnected = true;
-                    startCallTimer();
-                });
-        })
-        .catch(err => {
-            let errorMsg = 'Lỗi truy cập Camera/Micro';
-            if (err.name === 'NotAllowedError') errorMsg = 'Vui lòng cho phép quyền truy cập Camera/Micro trên trình duyệt!';
-            if (err.name === 'NotFoundError') errorMsg = 'Không tìm thấy thiết bị Camera/Micro nào trên máy tính!';
-            
-            alert(errorMsg);
-            console.error(err);
-            endCall();
-        });
+    isCallConnected = true;
+    const isVideo = currentCallOffer.isVideo;
+    
+    connection.invoke("AnswerCall", activeCallTargetId, { type: 'zego_accepted', isVideo: isVideo });
+    joinZegoRoom(activeConversationId, isVideo);
+    startCallTimer();
 }
 
 connection.on("CallAccepted", function (targetId, answer) {
-    document.getElementById("callStatusText").innerText = "Đã kết nối";
-    peerConnection.setRemoteDescription(new RTCSessionDescription(answer)).then(() => {
-        isCallConnected = true;
-        startCallTimer();
-        processPendingIceCandidates();
-    });
+    isCallConnected = true;
+    joinZegoRoom(activeConversationId, answer.isVideo);
+    startCallTimer();
 });
 
 connection.on("ReceiveICECandidate", function (candidate) {
@@ -989,17 +858,11 @@ window.endCall = function(isInitiator = true) {
     const duration = document.getElementById("callTimer").innerText;
     const status = isCallConnected ? "Completed" : "Missed";
 
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-    }
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-        document.getElementById("localVideo").srcObject = null;
+    if (zp) {
+        zp.destroy();
+        zp = null;
     }
     
-    // Chỉ người chủ động kết thúc hoặc khi cuộc gọi nhỡ mới log lịch sử (để tránh bị nhân đôi)
     if (isInitiator && activeConversationId && activeCallTargetId) {
         connection.invoke("SaveCallLog", activeConversationId, activeCallTargetId, duration, currentCallType, status).catch(console.error);
     }
@@ -1011,8 +874,6 @@ window.endCall = function(isInitiator = true) {
     stopCallTimer();
     isCallConnected = false;
     activeCallTargetId = null;
-    pendingIceCandidates = [];
-    document.getElementById("remoteVideo").srcObject = null;
 
     const callModal = bootstrap.Modal.getInstance(document.getElementById('callModal'));
     if (callModal) callModal.hide();
