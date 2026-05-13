@@ -646,7 +646,9 @@ let currentCallOffer = null; // Store offer for receiving side
 
 const iceServers = {
     iceServers: [
-        { urls: "stun:stun.l.google.com:19302" }
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" }
     ]
 };
 
@@ -669,10 +671,20 @@ window.startCall = function(isVideo) {
     const modal = new bootstrap.Modal(document.getElementById('callModal'));
     modal.show();
 
-    navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true })
+    const constraints = { video: isVideo, audio: true };
+    navigator.mediaDevices.getUserMedia(constraints)
+        .catch(err => {
+            console.warn("Retrying with audio only...", err);
+            return navigator.mediaDevices.getUserMedia({ audio: true });
+        })
         .then(stream => {
             localStream = stream;
             document.getElementById("localVideo").srcObject = stream;
+            if (!stream.getVideoTracks().length) {
+                document.getElementById("localVideo").classList.add("d-none");
+            } else {
+                document.getElementById("localVideo").classList.remove("d-none");
+            }
 
             peerConnection = new RTCPeerConnection(iceServers);
 
@@ -723,10 +735,20 @@ window.acceptCall = function() {
     document.getElementById("acceptCallBtn").classList.add("d-none");
     document.getElementById("callStatusText").innerText = "Đã kết nối";
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    const constraints = { video: true, audio: true };
+    navigator.mediaDevices.getUserMedia(constraints)
+        .catch(err => {
+            console.warn("Receiver fallback to audio only", err);
+            return navigator.mediaDevices.getUserMedia({ audio: true });
+        })
         .then(stream => {
             localStream = stream;
             document.getElementById("localVideo").srcObject = stream;
+            if (!stream.getVideoTracks().length) {
+                document.getElementById("localVideo").classList.add("d-none");
+            } else {
+                document.getElementById("localVideo").classList.remove("d-none");
+            }
 
             peerConnection = new RTCPeerConnection(iceServers);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -749,7 +771,11 @@ window.acceptCall = function() {
                 });
         })
         .catch(err => {
-            alert('Lỗi truy cập Camera/Micro');
+            let errorMsg = 'Lỗi truy cập Camera/Micro';
+            if (err.name === 'NotAllowedError') errorMsg = 'Vui lòng cho phép quyền truy cập Camera/Micro trên trình duyệt!';
+            if (err.name === 'NotFoundError') errorMsg = 'Không tìm thấy thiết bị Camera/Micro nào trên máy tính!';
+            
+            alert(errorMsg);
             console.error(err);
             endCall();
         });
