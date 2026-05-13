@@ -1,5 +1,6 @@
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("/chatHub")
+    .withAutomaticReconnect()
     .build();
 console.log("WebChat: chat.js đã được nạp thành công.");
 
