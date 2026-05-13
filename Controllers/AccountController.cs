@@ -95,6 +95,23 @@ public class AccountController : Controller
                 return View(model);
             }
 
+            var existingEmail = await _mongoService.Users.Find(u => u.Email == model.Email).FirstOrDefaultAsync();
+            if (existingEmail != null)
+            {
+                ModelState.AddModelError("Email", "Email này đã được sử dụng.");
+                return View(model);
+            }
+
+            if (!string.IsNullOrEmpty(model.Phone))
+            {
+                var existingPhone = await _mongoService.Users.Find(u => u.Phone == model.Phone).FirstOrDefaultAsync();
+                if (existingPhone != null)
+                {
+                    ModelState.AddModelError("Phone", "Số điện thoại này đã được sử dụng.");
+                    return View(model);
+                }
+            }
+
             var newUser = new User
             {
                 Username = model.Username,

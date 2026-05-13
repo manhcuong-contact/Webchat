@@ -16,6 +16,7 @@ namespace WEBchat.Models
     {
         [Required(ErrorMessage = "Vui lòng nhập Username.")]
         [StringLength(20, MinimumLength = 3, ErrorMessage = "Tên đăng nhập từ 3 - 20 kí tự.")]
+        [RegularExpression(@"^[a-zA-Z0-9]*$", ErrorMessage = "Username không được chứa dấu, khoảng trắng hoặc kí tự đặc biệt.")]
         public string Username { get; set; } = null!;
 
         [Required(ErrorMessage = "Vui lòng nhập Password.")]
