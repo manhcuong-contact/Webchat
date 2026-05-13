@@ -729,39 +729,66 @@ let activeCallTargetId = null;
 let currentCallOffer = null; 
 let isCallConnected = false;
 let isCallEnded = false;
-let currentCallType = "thoại"; 
+let currentCallType = "thoại";
+let callStartTime = null;
+let callTimerInterval = null;
 
 async function joinZegoRoom(roomID, isVideo) {
     if (zp) return; 
     
-    const container = document.getElementById("zego-full-screen-container");
-    container.style.display = "block";
+    const outerContainer = document.getElementById("zego-full-screen-container");
+    const innerContainer = document.getElementById("zego-inner-container");
+    outerContainer.style.display = "flex";
 
-    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(appID, serverSecret, roomID, currentUserId, currentUserName || "User_" + currentUserId);
-    zp = ZegoUIKitPrebuilt.create(kitToken);
-    
-    zp.joinRoom({
-        container: container,
-        scenario: {
-            mode: ZegoUIKitPrebuilt.OneONoneCall,
-        },
-        showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: isVideo,
-        showScreenSharingButton: true,
-        showMyCameraToggleButton: true,
-        showMyMicrophoneToggleButton: true,
-        showAudioVideoSettingsButton: true,
-        onLeaveRoom: () => {
-            container.style.display = "none";
-            endCall();
+    try {
+        if (typeof ZegoUIKitPrebuilt === 'undefined') {
+            throw new Error("Thư viện gọi điện chưa được tải xong. Vui lòng thử lại sau vài giây.");
         }
-    });
-    
-    // Đóng modal cũ để không che khuất
-    const callModalElement = document.getElementById('callModal');
-    const callModal = bootstrap.Modal.getInstance(callModalElement);
-    if (callModal) callModal.hide();
+
+        const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+            appID, 
+            serverSecret, 
+            roomID, 
+            currentUserId || "user_" + Math.floor(Math.random()*1000), 
+            currentUserName || "Người dùng"
+        );
+        
+        zp = ZegoUIKitPrebuilt.create(kitToken);
+        
+        zp.joinRoom({
+            container: innerContainer,
+            scenario: {
+                mode: ZegoUIKitPrebuilt.OneONoneCall,
+            },
+            showPreJoinView: false,
+            turnOnMicrophoneWhenJoining: true,
+            turnOnCameraWhenJoining: isVideo,
+            showScreenSharingButton: false,
+            showMyCameraToggleButton: true,
+            showMyMicrophoneToggleButton: true,
+            showAudioVideoSettingsButton: true,
+            showLeaveRoomConfirmDialog: false,
+            onLeaveRoom: () => {
+                outerContainer.style.display = "none";
+                endCall();
+            }
+        });
+        
+        // Ẩn modal gọi điện cũ
+        const callModalElement = document.getElementById('callModal');
+        const callModal = bootstrap.Modal.getInstance(callModalElement);
+        if (callModal) callModal.hide();
+
+    } catch (error) {
+        console.error("WebChat ZEGO Error:", error);
+        alert("Lỗi khởi tạo cuộc gọi: " + error.message);
+        outerContainer.style.display = "none";
+        isCallEnded = true;
+        if (zp) {
+            zp.destroy();
+            zp = null;
+        }
+    }
 }
 
 // Start a call
@@ -869,6 +896,10 @@ window.endCall = function(isInitiator = true) {
 
     const duration = document.getElementById("callTimer").innerText;
     const status = isCallConnected ? "Completed" : "Missed";
+
+    // Ẩn Zego fullscreen container
+    const zegoContainer = document.getElementById("zego-full-screen-container");
+    if (zegoContainer) zegoContainer.style.display = "none";
 
     if (zp) {
         zp.destroy();
