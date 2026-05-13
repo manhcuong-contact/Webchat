@@ -38,7 +38,7 @@ function loadConversations() {
                 const isGroupMark = conv.isGroup ? `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">Group/Channel</span>` : "";
 
                 const html = `
-                    <div class="d-flex align-items-center p-2 rounded cursor-pointer mb-1 conversation-item ${isActive}" onclick="openChat('${conv.id}', '${conv.name}', '${avatar}')">
+                    <div class="d-flex align-items-center p-2 rounded cursor-pointer mb-1 conversation-item ${isActive}" onclick="openChat('${conv.id}', '${conv.name}', '${avatar}', this)">
                         <img src="${avatar}" class="rounded-circle me-2" width="45" height="45">
                         <div class="overflow-hidden w-100">
                             <div class="d-flex justify-content-between align-items-center">
@@ -92,7 +92,7 @@ function loadUsers() {
         });
 }
 
-function openChat(id, name, avatar) {
+function openChat(id, name, avatar, element) {
     activeConversationId = id;
     document.getElementById("activeConversationId").value = id;
     
@@ -106,7 +106,9 @@ function openChat(id, name, avatar) {
 
     // Load active selection style
     document.querySelectorAll(".conversation-item").forEach(el => el.classList.remove("active", "bg-primary", "bg-opacity-25"));
-    event.currentTarget.classList.add("active", "bg-primary", "bg-opacity-25");
+    if (element) {
+        element.classList.add("active", "bg-primary", "bg-opacity-25");
+    }
 
     // Load Messages
     fetch(`/api/chatapi/conversation/${id}/messages`)
