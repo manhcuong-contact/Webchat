@@ -230,6 +230,27 @@ public class ChatApiController : ControllerBase
         return Ok(new { message = "Cập nhật quyền thành công." });
     }
 
+    [HttpPost("conversation/{conversationId}/participants")]
+    public async Task<IActionResult> InviteToGroup(string conversationId, [FromBody] List<string> participantIds)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null) return Unauthorized();
+
+        var conversation = await _mongoService.Conversations.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
+        if (conversation == null) return NotFound();
+
+        // Chỉ Owner và Admin mới được mời thêm người
+        if (!conversation.Owners.Contains(currentUserId) && !conversation.Admins.Contains(currentUserId))
+        {
+            return Forbid();
+        }
+
+        var update = Builders<Conversation>.Update.AddToSetEach(c => c.Participants, participantIds);
+        await _mongoService.Conversations.UpdateOneAsync(c => c.Id == conversationId, update);
+
+        return Ok(new { message = "Đã thêm thành viên thành công." });
+    }
+
     [HttpPut("conversation/{conversationId}/mute")]
     public async Task<IActionResult> ToggleMute(string conversationId, [FromBody] bool isMuted)
     {

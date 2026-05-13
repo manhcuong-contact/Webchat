@@ -478,13 +478,17 @@ window.openGroupSettings = function() {
 
     // Show/hide Admin Controls
     const adminControls = document.getElementById("groupAdminControls");
+    const inviteSection = document.getElementById("inviteFriendsSection");
     const readonlySwitch = document.getElementById("readonlySwitch");
     
     if (myRole === "Owner" || myRole === "Admin") {
         adminControls.classList.remove("d-none");
+        inviteSection.classList.remove("d-none");
         readonlySwitch.checked = isReadOnlyMode;
+        loadInviteList(participants);
     } else {
         adminControls.classList.add("d-none");
+        inviteSection.classList.add("d-none");
     }
 
     // Render Members
@@ -521,6 +525,67 @@ window.openGroupSettings = function() {
 
     const modal = new bootstrap.Modal(document.getElementById('groupSettingsModal'));
     modal.show();
+}
+
+window.loadInviteList = function(existingParticipants) {
+    fetch('/api/chatapi/users')
+        .then(res => res.json())
+        .then(friends => {
+            const inviteList = document.getElementById("inviteUserList");
+            inviteList.innerHTML = "";
+            
+            // Lọc ra những người chưa có trong nhóm
+            const existingIds = existingParticipants.map(p => p.id);
+            const nonMembers = friends.filter(f => !existingIds.includes(f.id));
+
+            if (nonMembers.length === 0) {
+                inviteList.innerHTML = '<p class="text-muted text-center small">Tất cả bạn bè đã có trong nhóm.</p>';
+                return;
+            }
+
+            nonMembers.forEach(user => {
+                const html = `
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" value="${user.id}" id="invite_${user.id}">
+                        <label class="form-check-label d-flex align-items-center" for="invite_${user.id}">
+                            <img src="${user.avatar || '/img/default_avatar.png'}" class="rounded-circle mx-2" width="25" height="25">
+                            <small>${user.displayName}</small>
+                        </label>
+                    </div>
+                `;
+                inviteList.insertAdjacentHTML('beforeend', html);
+            });
+        });
+}
+
+window.inviteToGroup = function() {
+    if (!activeConversationId) return;
+    
+    const checkedBoxes = document.querySelectorAll("#inviteUserList input[type=checkbox]:checked");
+    const participantIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+    if (participantIds.length === 0) {
+        alert("Vui lòng chọn ít nhất một người bạn để mời.");
+        return;
+    }
+
+    fetch(`/api/chatapi/conversation/${activeConversationId}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(participantIds)
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert("Đã mời thành viên thành công!");
+        // Refresh settings to show new members
+        fetch(`/api/chatapi/conversation/${activeConversationId}/details`)
+            .then(res => res.json())
+            .then(data => {
+                currentConversationDetails = data;
+                openGroupSettings();
+            });
+    })
+    .catch(err => alert("Lỗi khi mời thành viên."));
 }
 
 window.toggleReadOnly = function(isReadOnly) {
