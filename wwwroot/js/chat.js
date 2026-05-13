@@ -25,6 +25,13 @@ connection.on("ReceiveMessage", function (message) {
     loadConversations(); 
 });
 
+// Receive Friend Request Notification
+connection.on("ReceiveFriendRequest", function (requesterName) {
+    document.getElementById("friendRequestBadge").classList.remove("d-none");
+    // Optionally show a toast or alert
+    console.log("Bạn có lời mời kết bạn mới từ " + requesterName);
+});
+
 function loadConversations() {
     fetch('/api/chatapi/conversations')
         .then(res => res.json())
@@ -296,6 +303,59 @@ window.sendFriendRequest = function(userId) {
             if (searchInput) window.performSearch();
         })
         .catch(err => alert('Lỗi gửi yêu cầu kết bạn'));
+}
+
+window.loadFriendRequests = function() {
+    document.getElementById("friendRequestBadge").classList.add("d-none"); // Hide badge when opened
+    fetch('/api/user/friend-requests')
+        .then(res => res.json())
+        .then(data => {
+            const list = document.getElementById("friendRequestsList");
+            list.innerHTML = "";
+            if (data.length === 0) {
+                list.innerHTML = '<p class="text-muted text-center mt-3 p-3">Không có lời mời nào mới.</p>';
+                return;
+            }
+            data.forEach(user => {
+                const html = `
+                    <div class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center p-3">
+                        <div class="d-flex align-items-center">
+                            <img src="${user.avatar || '/img/default_avatar.png'}" class="rounded-circle me-2" width="40" height="40">
+                            <div>
+                                <h6 class="m-0">${user.displayName}</h6>
+                                <small class="text-muted">@${user.username}</small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-success" onclick="acceptFriendRequest('${user.id}')">Đồng ý</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="declineFriendRequest('${user.id}')">Từ chối</button>
+                        </div>
+                    </div>
+                `;
+                list.insertAdjacentHTML('beforeend', html);
+            });
+        });
+}
+
+window.acceptFriendRequest = function(requesterId) {
+    fetch(`/api/user/friend-accept/${requesterId}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            alert('Đã đồng ý kết bạn!');
+            loadFriendRequests();
+            loadConversations(); // Update list to show new friend in private chat list if needed
+        })
+        .catch(err => alert('Lỗi khi chấp nhận kết bạn'));
+}
+
+window.declineFriendRequest = function(requesterId) {
+    if(!confirm("Bạn có chắc muốn từ chối?")) return;
+    fetch(`/api/user/friend-decline/${requesterId}`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            loadFriendRequests();
+        })
+        .catch(err => alert('Lỗi khi từ chối kết bạn'));
 }
 
 // ============================================================================

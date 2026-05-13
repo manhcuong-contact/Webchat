@@ -5,6 +5,8 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using WEBchat.Models;
 using WEBchat.Services;
+using WEBchat.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace WEBchat.Controllers;
 
@@ -14,10 +16,12 @@ namespace WEBchat.Controllers;
 public class UserController : ControllerBase
 {
     private readonly MongoService _mongoService;
+    private readonly IHubContext<ChatHub> _hubContext;
 
-    public UserController(MongoService mongoService)
+    public UserController(MongoService mongoService, IHubContext<ChatHub> hubContext)
     {
         _mongoService = mongoService;
+        _hubContext = hubContext;
     }
 
     [HttpGet("search")]
@@ -102,6 +106,11 @@ public class UserController : ControllerBase
         };
 
         await _mongoService.Friendships.InsertOneAsync(friendship);
+
+        // Notify the receiver via SignalR
+        var requesterName = User.Identity?.Name ?? "Người dùng ẩn danh";
+        await _hubContext.Clients.User(receiverId).SendAsync("ReceiveFriendRequest", requesterName);
+
         return Ok(new { message = "Request sent" });
     }
 
@@ -131,6 +140,23 @@ public class UserController : ControllerBase
         if (result.ModifiedCount == 0) return BadRequest("Request not found or already processed");
 
         return Ok(new { message = "Request declined" });
+    }
+
+    [HttpGet("friend-requests")]
+    public async Task<IActionResult> GetPendingRequests()
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        // Tìm các bản ghi mà mình là người nhận và trạng thái là Pending
+        var requests = await _mongoService.Friendships.Find(f =>
+            f.ReceiverId == currentUserId && f.Status == "Pending"
+        ).ToListAsync();
+
+        var requesterIds = requests.Select(f => f.RequesterId).ToList();
+
+        var requesters = await _mongoService.Users.Find(u => requesterIds.Contains(u.Id)).ToListAsync();
+
+        return Ok(requesters.Select(u => new { u.Id, u.DisplayName, u.Username, u.Avatar }));
     }
 
     [HttpGet("friends")]
